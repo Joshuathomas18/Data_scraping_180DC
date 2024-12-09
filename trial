@@ -1,0 +1,54 @@
+import os
+from bs4 import BeautifulSoup
+import pandas as pd
+
+# Function to extract financial data from a filing
+def extract_financial_data(filing_path):
+    try:
+        # Try opening the file with utf-8 encoding
+        with open(filing_path, 'r', encoding='utf-8') as file:
+            filing_content = file.read()
+    except UnicodeDecodeError:
+        # If utf-8 fails, try a more forgiving encoding like ISO-8859-1
+        try:
+            with open(filing_path, 'r', encoding='ISO-8859-1') as file:
+                filing_content = file.read()
+        except Exception as e:
+            print(f"Error reading file {filing_path}: {e}")
+            return None
+    
+    # Parse the HTML content using BeautifulSoup
+    soup = BeautifulSoup(filing_content, 'html.parser')
+    
+    # Extracting revenue and net income
+    try:
+        revenue = soup.find(text="Revenue").find_next('td').get_text()
+        net_income = soup.find(text="Net Income").find_next('td').get_text()
+        
+        return {
+            'Revenue': float(revenue.replace(',', '').strip()),
+            'Net Income': float(net_income.replace(',', '').strip())
+        }
+    except AttributeError:
+        # Handle cases where the expected fields are not found
+        print(f"Missing fields in file: {filing_path}")
+        return {'Revenue': None, 'Net Income': None}
+
+# Specify the directory containing the downloaded filings
+filing_path = "C:/Users/User/Desktop/microsoft filings"  # Update this path
+
+# Collect data from all downloaded filings
+financial_data = []
+
+for filename in os.listdir(filing_path):
+    if filename.endswith('.docx'):
+        file_path = os.path.join(filing_path, filename)
+        data = extract_financial_data(file_path)
+        if data is not None:
+            financial_data.append(data)
+
+# Create DataFrame
+df = pd.DataFrame(financial_data)
+
+# Display the DataFrame
+print(df.head())

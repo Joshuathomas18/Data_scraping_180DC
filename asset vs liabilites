@@ -1,0 +1,88 @@
+import pandas as pd
+import requests
+import matplotlib.pyplot as plt
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image
+import os
+
+# Print current working directory
+print("Current Working Directory:", os.getcwd())
+
+# Make the API request
+url = "https://last10k-company-v1.p.rapidapi.com/v1/company/balancesheet"
+querystring = {"ticker": "msft", "formtype": "10-k", "filingorder": "0"}
+
+headers = {
+    "x-rapidapi-key": "bcfecedff6msh73a22f5b849fe79p1570efjsn1c7267df9d5f",
+    "x-rapidapi-host": "last10k-company-v1.p.rapidapi.com"
+}
+
+response = requests.get(url, headers=headers, params=querystring)
+data = response.json()
+
+# Extracting the relevant balance sheet data
+balance_sheet_data = data['data']['attributes']['result']
+df = pd.DataFrame(balance_sheet_data.items(), columns=['Account', 'Value'])
+
+# Generate Insights
+def generate_insights(df):
+    insights = []
+    total_assets = df[df['Account'] == 'Assets']['Value'].values[0]
+    total_liabilities = df[df['Account'] == 'Liabilities']['Value'].values[0]
+    equity = df[df['Account'] == 'StockholdersEquity']['Value'].values[0]
+    
+    insights.append(f"Total Assets: ${total_assets:,.2f}")
+    insights.append(f"Total Liabilities: ${total_liabilities:,.2f}")
+    insights.append(f"Stockholders' Equity: ${equity:,.2f}")
+
+    # Basic financial insight
+    if total_assets > total_liabilities:
+        insights.append("The company has more assets than liabilities, indicating positive net worth.")
+    else:
+        insights.append("The company has more liabilities than assets, which is a financial risk.")
+
+    debt_to_equity_ratio = total_liabilities / equity
+    insights.append(f"Debt to Equity Ratio: {debt_to_equity_ratio:.2f}")
+
+    if debt_to_equity_ratio > 1:
+        insights.append("The company is highly leveraged with more debt than equity.")
+    else:
+        insights.append("The company has a healthy balance of debt and equity.")
+
+    return "\n".join(insights)
+
+insights = generate_insights(df)
+print("Generated Insights:")
+print(insights)
+
+# Example plot: Total Assets vs. Total Liabilities
+plt.figure(figsize=(10, 6))
+assets_vs_liabilities = pd.DataFrame({
+    'Category': ['Total Assets', 'Total Liabilities'],
+    'Amount': [df[df['Account'] == 'Assets']['Value'].values[0], df[df['Account'] == 'Liabilities']['Value'].values[0]]
+})
+assets_vs_liabilities.plot(x='Category', y='Amount', kind='bar', legend=False, color=['green', 'red'])
+plt.title('Total Assets vs. Total Liabilities')
+plt.xlabel('Category')
+plt.ylabel('Amount in USD')
+plt.tight_layout()
+plt.savefig('balance_sheet_graph.png')  # Save the plot as an image
+plt.show()
+
+# Save data and insights to Excel
+print("Saving the financial report...")
+with pd.ExcelWriter('financial_report.xlsx', engine='openpyxl') as writer:
+    df.to_excel(writer, sheet_name='Balance Sheet Data', index=False)
+
+    # Create a new sheet for insights
+    workbook = writer.book
+    sheet = workbook.create_sheet("Insights")
+    sheet.append(["Insights"])
+    for line in insights.strip().split('\n'):
+        sheet.append([line])
+
+    # Insert the graph into the Excel file
+    img = Image('balance_sheet_graph.png')
+    sheet.add_image(img, 'E2')
+
+print("Financial report saved successfully as 'financial_report.xlsx'.")

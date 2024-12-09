@@ -1,0 +1,52 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+
+# Define the CIK for Microsoft (0000789019)
+cik = '0000789019'
+
+# Set headers for the request
+headers = {'User-Agent': "joshjothom05@gmail.com"}
+
+# Get filing metadata for Microsoft
+filingMetadata = requests.get(
+    f'https://data.sec.gov/submissions/CIK{cik}.json',
+    headers=headers
+)
+
+# Convert filing metadata to DataFrame
+allForms = pd.DataFrame.from_dict(filingMetadata.json()['filings']['recent'])
+
+# Filter for only 10-K forms in the last 5 years
+allForms['reportDate'] = pd.to_datetime(allForms['reportDate'], errors='coerce')
+five_years_ago = datetime.now() - timedelta(days=5*365)
+tenK_filings = allForms[(allForms['form'] == '10-K') & (allForms['reportDate'] > five_years_ago)]
+
+# Get company facts data
+companyFacts = requests.get(
+    f'https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json',
+    headers=headers
+)
+
+# Retrieve 'us-gaap: Assets' data
+companyConcept = requests.get(
+    f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/Assets.json',
+    headers=headers
+)
+
+# Convert assets data to DataFrame
+assetsData = pd.DataFrame.from_dict(companyConcept.json()['units']['USD'])
+
+# Filter only 10-K forms and dates in the past 5 years
+assetsData['end'] = pd.to_datetime(assetsData['end'], errors='coerce')
+assets10K = assetsData[(assetsData['form'] == '10-K') & (assetsData['end'] > five_years_ago)]
+assets10K = assets10K.reset_index(drop=True)
+
+# Plot assets over time for 10-K filings
+assets10K.plot(x='end', y='val', title='Microsoft Annual Assets (10-K Filings in Last 5 Years)', marker='o')
+plt.xlabel('Year')
+plt.ylabel('Assets (in USD)')
+plt.grid(True)
+plt.show()
+

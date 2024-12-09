@@ -1,0 +1,44 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Example data
+data = {
+    'Document': ['doc1', 'doc2', 'doc3'],
+    'Topic': ['Topic1', 'Topic2', 'Topic3'],
+    'Keywords': ['keyword1, keyword2', 'keyword3, keyword4', 'keyword5, keyword6'],
+    'Sentiment': ['Positive', 'Neutral', 'Negative']
+}
+df = pd.DataFrame(data)
+
+# Save to Excel
+with pd.ExcelWriter('insights_report.xlsx', engine='xlsxwriter') as writer:
+    df.to_excel(writer, sheet_name='Insights', index=False)
+
+    # Additional Sheets or Formatting
+    workbook = writer.book
+    worksheet = writer.sheets['Insights']
+    
+    # Example formatting
+    worksheet.set_column('A:D', 20)  # Set column width
+    worksheet.set_row(0, 20, workbook.add_format({'bold': True}))  # Format header row
+
+    # Plotting
+    plot_data = {
+        'Category': ['Assets', 'Liabilities'],
+        'Amount': [100000, 50000]
+    }
+    df_plot = pd.DataFrame(plot_data)
+    plt.figure(figsize=(6, 4))
+    sns.barplot(x='Category', y='Amount', data=df_plot, palette='viridis')
+    plt.title('Assets vs Liabilities')
+    plt.savefig('bar_plot.png')  # Save plot as an image
+    
+    # Add plot image to Excel
+    worksheet.insert_image('F2', 'bar_plot.png')
+
+print("Data and plot exported to 'insights_report.xlsx'")
+
+
+
+

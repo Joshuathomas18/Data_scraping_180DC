@@ -1,0 +1,54 @@
+import pandas as pd
+from bs4 import BeautifulSoup
+import re
+import matplotlib.pyplot as plt
+import seaborn as sns
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image
+
+# Load the Excel file
+file_path = r'C:\Users\User\Desktop\excel ML.xlsx'
+df = pd.read_excel(file_path)
+
+# Inspect the data
+print(df.head())
+print(df.columns)  # Check the exact column names
+
+# Drop rows with missing values (if necessary)
+df_cleaned = df.dropna()
+print(df_cleaned.columns)
+
+# Define the text cleaning function
+def clean_text(text):
+    soup = BeautifulSoup(text, "html.parser")
+    text = soup.get_text()
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+# Apply the cleaning function to the 'DocumentName' column
+df_cleaned['cleaned_column'] = df_cleaned['DocumentName'].apply(clean_text)
+
+# Inspect the cleaned data
+print(df_cleaned.head())
+
+# Filter for 10-K filings based on the 'form' column
+df_10k = df_cleaned[df_cleaned['form'] == '10-K']
+
+# Check the filtered data
+print(df_10k.head())
+
+# Save the data to an Excel file
+with pd.ExcelWriter('financial_report.xlsx', engine='openpyxl') as writer:
+    df.to_excel(writer, sheet_name='Balance Sheet Data', index=False)
+
+    # Access the workbook and create a new sheet for insights
+    workbook = writer.book
+    sheet = workbook.create_sheet("Insights")
+
+    # Define insights (ensure you have this list populated)
+    Insights = ['Insight 1', 'Insight 2', 'Insight 3']  # Example insights
+
+    # Write the insights to the new sheet
+    sheet.append
+
+

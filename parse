@@ -1,0 +1,75 @@
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+
+headers = {"User-Agent": "joshjothom05@gmail.com"}  # Update with your email address
+
+def cik_matching_ticker(ticker, headers=headers):
+    ticker = ticker.upper().replace(".", "-")
+    ticker_json = requests.get(
+        "https://www.sec.gov/files/company_tickers.json", headers=headers
+    ).json()
+
+    for company in ticker_json.values():
+        if company["ticker"] == ticker:
+            cik = str(company["cik_str"]).zfill(10)
+            return cik
+    raise ValueError(f"Ticker {ticker} not found in SEC database")
+
+def get_submission_data_for_ticker(ticker, headers=headers):
+    cik = cik_matching_ticker(ticker)
+    url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()  # Ensure the request was successful
+    return response.json()
+
+def get_statement_html(ticker, accession_number, headers=headers):
+    cik = cik_matching_ticker(ticker)
+    # Adjust URL based on available formats
+    url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/index.html"
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()  # Ensure the request was successful
+    return response.content
+
+def parse_html_balance_sheet(html_content):
+    # Parse the HTML content
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Example extraction logic - adjust based on the HTML structure
+    balance_sheet_data = []
+    
+    # Assuming the balance sheet data is in a table
+    table = soup.find('table')  # Adjust selector to target the correct table
+    if not table:
+        return pd.DataFrame()  # Return an empty DataFrame if no table is found
+
+    # Extract table headers
+    headers = [th.get_text(strip=True) for th in table.find_all('th')]
+    
+    # Extract rows
+    rows = []
+    for tr in table.find_all('tr')[1:]:  # Skip header row
+        cols = [td.get_text(strip=True) for td in tr.find_all('td')]
+        if len(cols) == len(headers):  # Ensure row length matches header length
+            rows.append(cols)
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(rows, columns=headers)
+    return df
+
+def process_one_statement(ticker, accession_number):
+    html_content = get_statement_html(ticker, accession_number)
+    df = parse_html_balance_sheet(html_content)
+    
+    if not df.empty:
+        print(df)
+    else:
+        print("No data found in the HTML statement.")
+
+# Set the ticker and accession number
+ticker = "MSFT"
+accession_number = "000095017024087843"
+
+# Process and display the balance sheet
+process_one_statement(ticker, accession_number)
+

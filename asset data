@@ -1,0 +1,75 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+
+# Define the CIK for Microsoft (0000789019)
+cik = '0000789019'
+
+# Set headers for the request
+headers = {'User-Agent': "joshjothom05@gmail.com"}
+
+# Get filing metadata for Microsoft
+filingMetadata = requests.get(
+    f'https://data.sec.gov/submissions/CIK{cik}.json',
+    headers=headers
+)
+
+# Convert filing metadata to DataFrame
+allForms = pd.DataFrame.from_dict(filingMetadata.json()['filings']['recent'])
+
+# Filter for only 10-K forms in the last 5 years
+allForms['reportDate'] = pd.to_datetime(allForms['reportDate'], errors='coerce')
+five_years_ago = datetime.now() - timedelta(days=5*365)
+tenK_filings = allForms[(allForms['form'] == '10-K') & (allForms['reportDate'] > five_years_ago)]
+
+# Get company facts data
+companyFacts = requests.get(
+    f'https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json',
+    headers=headers
+)
+
+# Retrieve 'us-gaap: Assets' data
+companyConcept = requests.get(
+    f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/Assets.json',
+    headers=headers
+)
+
+# Convert assets data to DataFrame
+assetsData = pd.DataFrame.from_dict(companyConcept.json()['units']['USD'])
+
+# Filter only 10-K forms and dates in the past 5 years
+assetsData['end'] = pd.to_datetime(assetsData['end'], errors='coerce')
+assets10K = assetsData[(assetsData['form'] == '10-K') & (assetsData['end'] > five_years_ago)]
+assets10K = assets10K.reset_index(drop=True)
+
+# Sort data by date to ensure it is in chronological order
+assets10K = assets10K.sort_values(by='end')
+
+# Derive Insights using pandas
+
+# 1. Calculate the Year-over-Year (YoY) percentage change in assets
+assets10K['YoY_Percentage_Change'] = assets10K['val'].pct_change() * 100
+
+# 2. Calculate the average annual growth rate (CAGR)
+start_val = assets10K['val'].iloc[0]
+end_val = assets10K['val'].iloc[-1]
+years = (assets10K['end'].iloc[-1] - assets10K['end'].iloc[0]).days / 365
+cagr = ((end_val / start_val) ** (1/years) - 1) * 100
+
+# 3. Check for any anomalies (e.g., significant drops in assets)
+assets10K['Anomaly'] = assets10K['YoY_Percentage_Change'].apply(lambda x: 'Yes' if x < -10 else 'No')
+
+# Save results to Excel
+with pd.ExcelWriter('Microsoft_Assets_Insights.xlsx', engine='openpyxl') as writer:
+    # Write raw 10-K assets data
+    assets10K.to_excel(writer, sheet_name='Assets_Data', index=False)
+    
+    # Create a summary sheet with derived insights
+    insights = pd.DataFrame({
+        'Metric': ['Start Value', 'End Value', 'CAGR (%)'],
+        'Value': [start_val, end_val, cagr]
+    })
+    insights.to_excel(writer, sheet_name='Derived_Insights', index=False)
+
+print("Excel file 'Microsoft_Assets_Insights.xlsx' has been created.")
